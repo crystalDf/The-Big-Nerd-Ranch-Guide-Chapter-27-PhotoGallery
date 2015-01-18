@@ -13,8 +13,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
 import java.net.HttpURLConnection;
-import java.net.InetSocketAddress;
-import java.net.Proxy;
 import java.net.URL;
 import java.util.ArrayList;
 
@@ -45,7 +43,7 @@ public class FlickrFetchr {
                 return null;
             }
 
-            int bytesRead = 0;
+            int bytesRead;
 
             byte[] buffer = new byte[1024];
             while ((bytesRead = in.read(buffer)) > 0) {
