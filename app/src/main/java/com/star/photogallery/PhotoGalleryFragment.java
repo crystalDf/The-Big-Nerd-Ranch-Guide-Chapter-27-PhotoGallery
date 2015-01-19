@@ -84,10 +84,15 @@ public class PhotoGalleryFragment extends Fragment {
     }
 
     @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        mThumbnailThread.clearQueue();
+    }
+
+    @Override
     public void onDestroy() {
         super.onDestroy();
-//        mThumbnailThread.quit();
-        mThumbnailThread.clearQueue();
+        mThumbnailThread.quit();
         Log.i(TAG, "Background thread destroyed");
     }
 

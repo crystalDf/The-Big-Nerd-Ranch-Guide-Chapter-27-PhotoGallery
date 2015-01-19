@@ -77,7 +77,7 @@ public class ThumbnailDownloader<Token> extends HandlerThread {
                 mResponseHandler.post(new Runnable() {
                     @Override
                     public void run() {
-                        if (requestMap.get(token).equals(url)) {
+                        if (url.equals(requestMap.get(token))) {
                             requestMap.remove(token);
                             mListener.onThumbnailDownloaded(token, bitmap);
                         }
