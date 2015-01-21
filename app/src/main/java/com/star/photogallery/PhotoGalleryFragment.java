@@ -7,7 +7,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
-import android.support.v4.util.LruCache;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -32,7 +31,7 @@ public class PhotoGalleryFragment extends Fragment {
     private int mFetchedPage = 0;
     private int mCurrentPosition = 0;
 
-    private LruCache<String, Bitmap> mMemoryCache;
+    private ThumbnailCacheDownloader mThumbnailCacheThread;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -42,13 +41,11 @@ public class PhotoGalleryFragment extends Fragment {
 
         new FetchItemsTask().execute(mCurrentPage);
 
-//        mThumbnailThread = new ThumbnailDownloader<>();
         mThumbnailThread = new ThumbnailDownloader<>(new Handler());
         mThumbnailThread.setListener(new ThumbnailDownloader.Listener<ImageView>() {
 
             @Override
-            public void onThumbnailDownloaded(ImageView imageView, String url, Bitmap thumbnail) {
-                addBitmapToMemoryCache(url, thumbnail);
+            public void onThumbnailDownloaded(ImageView imageView, Bitmap thumbnail) {
                 if (isVisible()) {
                     imageView.setImageBitmap(thumbnail);
                 }
@@ -61,7 +58,10 @@ public class PhotoGalleryFragment extends Fragment {
         final int maxMemory = (int) (Runtime.getRuntime().maxMemory() / 1024);
         final int catchSize = maxMemory / 8;
 
-        mMemoryCache = new LruCache<>(catchSize);
+        SingletonLruCache.getInstance(catchSize);
+
+        mThumbnailCacheThread = new ThumbnailCacheDownloader();
+        mThumbnailCacheThread.start();
     }
 
     @Override
@@ -96,12 +96,14 @@ public class PhotoGalleryFragment extends Fragment {
     public void onDestroyView() {
         super.onDestroyView();
         mThumbnailThread.clearQueue();
+        mThumbnailCacheThread.clearCacheQueue();
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
         mThumbnailThread.quit();
+        mThumbnailCacheThread.quit();
         Log.i(TAG, "Background thread destroyed");
     }
 
@@ -157,11 +159,22 @@ public class PhotoGalleryFragment extends Fragment {
             imageView.setImageResource(R.drawable.brian_up_close);
             GalleryItem item = getItem(position);
 
-            if (getBitmapFromMemoryCache(item.getUrl()) == null) {
+            Bitmap bitmap = SingletonLruCache.getBitmapFromMemoryCache(item.getUrl());
+
+            if (bitmap == null) {
                 mThumbnailThread.queueThumbnail(imageView, item.getUrl());
             } else {
                 if (isVisible()) {
-                    imageView.setImageBitmap(getBitmapFromMemoryCache(item.getUrl()));
+                    imageView.setImageBitmap(bitmap);
+                }
+            }
+
+            for (int i = position - 10; i <= position + 10; i++) {
+                if (i >= 0 && i < mItems.size()) {
+                    String url = mItems.get(i).getUrl();
+                    if (SingletonLruCache.getBitmapFromMemoryCache(url) == null) {
+                        mThumbnailCacheThread.queueThumbnailCache(url);
+                    }
                 }
             }
 
@@ -169,13 +182,4 @@ public class PhotoGalleryFragment extends Fragment {
         }
     }
 
-    public void addBitmapToMemoryCache(String key, Bitmap bitmap) {
-        if (getBitmapFromMemoryCache(key) == null) {
-            mMemoryCache.put(key, bitmap);
-        }
-    }
-
-    public Bitmap getBitmapFromMemoryCache(String key) {
-        return mMemoryCache.get(key);
-    }
 }

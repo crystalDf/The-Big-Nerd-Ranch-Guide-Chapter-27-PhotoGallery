@@ -27,7 +27,7 @@ public class ThumbnailDownloader<Token> extends HandlerThread {
     private Listener<Token> mListener;
 
     public interface Listener<Token> {
-        public void onThumbnailDownloaded(Token token, String url, Bitmap thumbnail);
+        public void onThumbnailDownloaded(Token token, Bitmap thumbnail);
     }
 
     public void setListener(Listener<Token> listener) {
@@ -69,17 +69,24 @@ public class ThumbnailDownloader<Token> extends HandlerThread {
         try {
             final String url = requestMap.get(token);
             if (url != null) {
-                byte[] bitmapBytes = new FlickrFetchr().getUrlBytes(url);
-                final Bitmap bitmap = BitmapFactory.decodeByteArray(
-                        bitmapBytes, 0, bitmapBytes.length);
-                Log.i(TAG, "Bitmap created");
+                final Bitmap bitmap;
+
+                if (SingletonLruCache.getBitmapFromMemoryCache(url) != null) {
+                    bitmap = SingletonLruCache.getBitmapFromMemoryCache(url);
+                } else {
+                    byte[] bitmapBytes = new FlickrFetchr().getUrlBytes(url);
+                    bitmap = BitmapFactory.decodeByteArray(
+                            bitmapBytes, 0, bitmapBytes.length);
+                    SingletonLruCache.addBitmapToMemoryCache(url, bitmap);
+                    Log.i(TAG, "Bitmap created");
+                }
 
                 mResponseHandler.post(new Runnable() {
                     @Override
                     public void run() {
                         if (url.equals(requestMap.get(token))) {
                             requestMap.remove(token);
-                            mListener.onThumbnailDownloaded(token, url, bitmap);
+                            mListener.onThumbnailDownloaded(token, bitmap);
                         }
                     }
                 });
