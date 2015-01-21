@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
+import android.support.v4.util.LruCache;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -31,6 +32,8 @@ public class PhotoGalleryFragment extends Fragment {
     private int mFetchedPage = 0;
     private int mCurrentPosition = 0;
 
+    private LruCache<String, Bitmap> mMemoryCache;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -44,7 +47,8 @@ public class PhotoGalleryFragment extends Fragment {
         mThumbnailThread.setListener(new ThumbnailDownloader.Listener<ImageView>() {
 
             @Override
-            public void onThumbnailDownloaded(ImageView imageView, Bitmap thumbnail) {
+            public void onThumbnailDownloaded(ImageView imageView, String url, Bitmap thumbnail) {
+                addBitmapToMemoryCache(url, thumbnail);
                 if (isVisible()) {
                     imageView.setImageBitmap(thumbnail);
                 }
@@ -53,6 +57,11 @@ public class PhotoGalleryFragment extends Fragment {
         mThumbnailThread.start();
         mThumbnailThread.getLooper();
         Log.i(TAG, "Background thread started");
+
+        final int maxMemory = (int) (Runtime.getRuntime().maxMemory() / 1024);
+        final int catchSize = maxMemory / 8;
+
+        mMemoryCache = new LruCache<>(catchSize);
     }
 
     @Override
@@ -147,9 +156,26 @@ public class PhotoGalleryFragment extends Fragment {
 
             imageView.setImageResource(R.drawable.brian_up_close);
             GalleryItem item = getItem(position);
-            mThumbnailThread.queueThumbnail(imageView, item.getUrl());
+
+            if (getBitmapFromMemoryCache(item.getUrl()) == null) {
+                mThumbnailThread.queueThumbnail(imageView, item.getUrl());
+            } else {
+                if (isVisible()) {
+                    imageView.setImageBitmap(getBitmapFromMemoryCache(item.getUrl()));
+                }
+            }
 
             return convertView;
         }
+    }
+
+    public void addBitmapToMemoryCache(String key, Bitmap bitmap) {
+        if (getBitmapFromMemoryCache(key) == null) {
+            mMemoryCache.put(key, bitmap);
+        }
+    }
+
+    public Bitmap getBitmapFromMemoryCache(String key) {
+        return mMemoryCache.get(key);
     }
 }
