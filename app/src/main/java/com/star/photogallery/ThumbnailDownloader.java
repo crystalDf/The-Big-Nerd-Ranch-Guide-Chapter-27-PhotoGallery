@@ -70,9 +70,10 @@ public class ThumbnailDownloader<Token> extends HandlerThread {
             final String url = requestMap.get(token);
             if (url != null) {
                 final Bitmap bitmap;
+                Bitmap tempBitmap;
 
-                if (SingletonLruCache.getBitmapFromMemoryCache(url) != null) {
-                    bitmap = SingletonLruCache.getBitmapFromMemoryCache(url);
+                if ((tempBitmap = SingletonLruCache.getBitmapFromMemoryCache(url)) != null) {
+                    bitmap = tempBitmap;
                 } else {
                     byte[] bitmapBytes = new FlickrFetchr().getUrlBytes(url);
                     bitmap = BitmapFactory.decodeByteArray(
